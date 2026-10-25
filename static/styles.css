@@ -7,6 +7,8 @@
     --correct-color: cornsilk;
     --incorrect-color: #5f5d56;
     --paper-color: antiquewhite;
+    --lightning-color1: #d2d6da42;
+    --lightning-color2: #d2d6da81;
 }
 @font-face {
     font-family: "EagleHorizon";
@@ -199,12 +201,12 @@ body{
     position: absolute;
     width: 100%;
     top: calc(10% + 90px);
+    z-index: -1;
 }
 #candle .flame{
     position: absolute;
     width: 100%;
     top: 10%;
-    z-index: 1;
 }
 svg{
     position: absolute;
@@ -228,9 +230,33 @@ svg{
 
 
 #illuminationLayer {  
-
     background: radial-gradient(circle at 50% 33%, transparent, #000000a6);
     height: 100dvh;
     z-index: 2;
     pointer-events: none;
+}
+body::before{
+    position: absolute;
+    content: "";
+    display: block;
+    width: 150px;
+    height: 250px;
+    left: calc(95vw - 150px);
+    bottom: calc(90vh - 250px);
+    z-index: -2;
+    background: linear-gradient(to bottom, transparent calc(50% - 10px), black calc(50% - 10px), black calc(50% + 10px), transparent calc(50% + 10px)),
+                linear-gradient(to right, transparent calc(50% - 10px), black calc(50% - 10px),  black calc(50% + 10px), transparent calc(50% + 10px)),
+                radial-gradient(circle at center, var(--lightning-color1)),
+                radial-gradient(circle at top right, #484e53 0%, #343b41 100%);
+}
+body::after{
+    position: absolute;
+    content: "";
+    display: block;
+    width: 100vw;
+    height: 30vh;
+    left: 0vw;
+    bottom: 0vh;
+    background: rgb(145 115 115);
+    z-index: -2;
 }

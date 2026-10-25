@@ -36,7 +36,6 @@ socket.on("chooseWord", (wordList) => {
     ABResults.appendChild(choices);
     bodyElement.appendChild(ABResults);
 
-
     /// !! candle testing
     addFlamingCandle(ABResults);
     setTimeout(() => {
