@@ -76,11 +76,11 @@ socket.on("chooseQuestion", (q1Text, q2Text) => {
     questionChoicePopUp.id = "chooseQuestion";
 
     const q1 = document.createElement("button");
-    q1.textContent = q1Text;
+    q1.innerHTML = q1Text;
     const or = document.createElement("p");
     or.textContent = "or";
     const q2 = document.createElement("button");
-    q2.textContent = q2Text;
+    q2.innerHTML = q2Text;
 
     q1.addEventListener("click", () => {
         questionChoicePopUp.remove();
@@ -95,8 +95,16 @@ socket.on("chooseQuestion", (q1Text, q2Text) => {
     bodyElement.appendChild(questionChoicePopUp);
 })
 
+socket.on("questionToAnswer", (questionText) => {
+    const questionDisplay = document.createElement("div");
+    questionDisplay.id = "questionDisplay";
+    const question = document.createElement("p");
+    question.innerHTML = questionText;
+    questionDisplay.appendChild(question);
+    bodyElement.appendChild(questionDisplay)
+})
+
 socket.on("displayRevealedLetters", (revealedLetters) => {
-    console.log("test");
     beginWordReveal(revealedLetters.length);
     revealAllLetters(revealedLetters);
 })
@@ -122,7 +130,6 @@ function revealLetter(index, value){
     letterToReveal.textContent = value;
 }
 function revealAllLetters(revealedLetters){
-    console.log(revealedLetters);
     for (let i = 0; i < revealedLetters.length; i++){
         if (revealedLetters[i]){
             revealLetter(i, revealedLetters[i]);

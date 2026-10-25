@@ -1,3 +1,5 @@
+import questions from "./static/questions.json" with { type: "json" }
+
 import express from "express";
 import { faker } from "@faker-js/faker"
 import { GoogleGenAI } from '@google/genai';
@@ -43,12 +45,16 @@ class GameState {
     #wordList = [];
     #secretWord;
     #revealedLetters = [];
-    #questionOptions;
+    #questionBank = new Set([]);
     #currentQuestion;
     #userAnswers;
     #spiritChoice;
 
-    constructor(gameID) {
+    constructor(numQuestions, gameID) {
+        while (this.#questionBank.size < numQuestions) {
+            const randIndex = Math.floor(Math.random() * questions.length);
+            this.#questionBank.add(questions[randIndex]);
+        }
         this.#gameID = gameID;
     }
 
@@ -67,7 +73,6 @@ class GameState {
     }
     newRound(){
         this.#gameRound++;
-        this.#questionOptions = undefined;
         this.#currentQuestion = undefined;
         this.#userAnswers = undefined;
         this.#spiritChoice = undefined;
@@ -83,13 +88,13 @@ class GameState {
     set gamePhase(newPhase){
         this.#gamePhase = newPhase;
     }
-    set questionOptions(options){
-        this.#questionOptions = options;
-    }
     set currentQuestion(question){
         this.#currentQuestion = question;
     }
 
+    get questionBank(){
+        return [...this.#questionBank];
+    }
     get gameRound(){
         return this.#gameRound
     }
@@ -107,13 +112,13 @@ class GameState {
     }
 }
 
-const myGame = new GameState(crypto.randomUUID());
+const myGame = new GameState(6, crypto.randomUUID());
 
 let generatedWords = false
 let generatingWords = false;
 
 /////////// SERVER EVENTS
-io.on("connection", (socket) => {
+io.on("connection", (socket) => {   
     if (myGame.wordList.length == 4){
         socket.emit("chooseWord", myGame.wordList);
     }
@@ -125,20 +130,15 @@ io.on("connection", (socket) => {
     socket.on("chosenWord", (wordToGuess) => {
         myGame.secretWord = wordToGuess;
         myGame.gamePhase = "Question Generation";
-        chooseQuestion(socket);
+        chooseQuestion(socket, 0);
     })
 
     socket.on("chosenQuestion", (questionText) => {
         myGame.currentQuestion = questionText;
         myGame.gamePhase = "Question Responses";
-        
-        // !! end game testing
-        myGame.revealWordLength();
-        myGame.revealNewLetter();
-        myGame.revealNewLetter();
-        io.emit("displayRevealedLetters", myGame.revealedLetters);
 
-        socket.broadcast.emit("questionToAnswer", (questionText));
+        // !! make socket.broadcast.emit for multiplayer functionality
+        socket.emit("questionToAnswer", (questionText));
     })
 
 
@@ -155,12 +155,10 @@ httpServer.listen(port, function () {
     console.log('App listening at https://%s:%s', host, port)
 });
 
-function chooseQuestion(socket){
+function chooseQuestion(socket, questionRound){
     if (myGame.gamePhase == "Question Generation"){
-        // !! pull questions from JSON and save in game object
-        const q1 = "One Option";
-        const q2 = "Another Option";
-        myGame.questionOptions = [q1, q2];
+        const q1 = myGame.questionBank[2*questionRound];
+        const q2 = myGame.questionBank[2*questionRound + 1];
 
         myGame.gamePhase = "Question Selection";
         socket.emit("chooseQuestion", q1, q2);
@@ -173,7 +171,7 @@ async function generateRandomWords(socket, numWordsToGenerate){
 
     const modelResponse = await ai.models.generateContent({
         model: "gemini-3.5-flash-lite",
-        contents:  `Examine these nouns: ${JSON.stringify(data)}. For each, evaluate how difficult it would be to guess using a series of yes/no questions. Rate physical objects as easier than ideas, gerunds, and the like. 
+        contents:  `Examine these nouns: ${JSON.stringify(data)}. For each, evaluate how difficult it would be to guess using the following questions: ${questions}. Rate physical objects as easier than ideas, gerunds, and the like. 
                     Uncommon words are difficult to guess. Respond only with a string  of 50 digits, each corresponding value from 1(easiest) - 9(hardest). Pay special attention to values you assign to words in the 1-5 range.
                     Use the following examples as a rough guidline 1: car, arm, house; 2: finger, bottle, tissue; 3: coaster, driveway, whisker; 4: antennae, cord, alarm; 5: diorite, flow, occupation;`,
     });

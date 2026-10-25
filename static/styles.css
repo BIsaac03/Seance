@@ -191,16 +191,19 @@ body{
 }
 #candle{
     grid-column: 1 / 3;
+    justify-self: center;
+    display: grid;
 }
 
 #candle .candle{
     position: absolute;
     width: 100%;
+    top: calc(10% + 90px);
 }
 #candle .flame{
     position: absolute;
     width: 100%;
-    top: 11%;
+    top: 10%;
     z-index: 1;
 }
 svg{
@@ -208,6 +211,21 @@ svg{
     place-self: center;
     overflow: visible;
 }
+
+#questionDisplay{
+    position: absolute;
+    justify-self: center;
+    top: 5vh;
+    width: fit-content;
+    font-size: 32px;
+    font-family: "NightBubble";
+    color: gray;
+}
+#questionDisplay b{
+    color: white;
+}
+
+
 
 #illuminationLayer {  
 
