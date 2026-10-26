@@ -141,6 +141,10 @@ io.on("connection", (socket) => {
         socket.emit("questionToAnswer", (questionText));
     })
 
+    socket.on("guessEntered", (playerID, playerGuess) => {
+        // !! save guess to Player object with playerID
+    })
+
 
     socket.on("evaluatedQuestionAnswers", (winner) => {
         // !! reveal and save chosen answer 

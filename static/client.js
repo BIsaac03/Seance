@@ -95,12 +95,8 @@ socket.on("chooseQuestion", (q1Text, q2Text) => {
 })
 
 socket.on("questionToAnswer", (questionText) => {
-    const questionDisplay = document.createElement("div");
-    questionDisplay.id = "questionDisplay";
-    const question = document.createElement("p");
-    question.innerHTML = questionText;
-    questionDisplay.appendChild(question);
-    bodyElement.appendChild(questionDisplay)
+    displayQuestion(questionText);
+    allowGuessEntry(socket);
 })
 
 socket.on("displayRevealedLetters", (revealedLetters) => {
@@ -124,6 +120,34 @@ function beginWordReveal(wordLength){
     secretWord.style.gridTemplateColumns = `repeat(${wordLength}, 1fr)`;
     bodyElement.appendChild(secretWord);
 }
+
+function displayQuestion(questionText){
+    const questionDisplay = document.createElement("div");
+    questionDisplay.id = "questionDisplay";
+    const question = document.createElement("p");
+    question.innerHTML = questionText;
+    questionDisplay.appendChild(question);
+    bodyElement.appendChild(questionDisplay);
+}
+
+function allowGuessEntry(socket){
+    const userGuess = document.createElement("div");
+    userGuess.id = "userGuess";
+    userGuess.classList.add("answer");
+    const guessEntry = document.createElement("input");
+    guessEntry.value = "";
+    userGuess.appendChild(guessEntry);
+    bodyElement.appendChild(userGuess);
+    guessEntry.focus();
+
+    guessEntry.addEventListener("keydown", function(e) {
+        if (e.key === "Enter" && guessEntry.value != "") {
+            userGuess.remove();
+            socket.emit("guessEntered", myID, guessEntry.value());
+        }
+    });
+}
+
 function revealLetter(index, value){
     const letterToReveal = document.querySelector(`#secretWord .letter${index} p`);
     letterToReveal.textContent = value;

@@ -70,13 +70,13 @@ body{
 .answer{
     display: grid;
     place-items: center;
-    width: 300px;
-    height: 50px;
+    width: 400px;
+    height: 100px;
     background: linear-gradient(to bottom, transparent calc(50% - 1px), rgb(239 222 197) 50%, transparent calc(50% + 1px)),
                 linear-gradient(to right, transparent calc(50% - 1px), rgb(239 222 197) 50%, transparent calc(50% + 1px));
     background-color: var(--paper-color);
     font-family: "EagleHorizon";
-    font-size: 25px;
+    font-size: 42px;
     letter-spacing: 1px;
     overflow: auto;
 }
@@ -189,6 +189,8 @@ body{
     justify-content: space-between;
 }
 #ABResults .answer{
+    position: relative;
+    top: -50px;
     background: var(--paper-color);
 }
 #candle{
@@ -217,7 +219,7 @@ svg{
 #questionDisplay{
     position: absolute;
     justify-self: center;
-    top: 5vh;
+    top: 3vh;
     width: fit-content;
     font-size: 32px;
     font-family: "NightBubble";
@@ -225,6 +227,26 @@ svg{
 }
 #questionDisplay b{
     color: white;
+}
+#userGuess{
+    position: absolute;
+    justify-self: center;
+    top: 60vh;
+    display: grid;
+    box-shadow: 0 0 15px 20px black;
+}
+#userGuess input{
+    place-self: center;
+    background-color: transparent;
+    border: transparent;
+    font-size: 42px;
+    font-family: "EagleHorizon";
+    letter-spacing: 1px;
+    width: 90%;
+    text-align: center;
+}
+#userGuess input:focus{
+    outline: none;
 }
 
 
