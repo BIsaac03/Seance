@@ -26,6 +26,55 @@ body{
     overflow: hidden;
 }
 
+#promptRoomCode{
+    position: absolute;
+    place-self: center;
+    width: 350px;
+    display: grid;
+    justify-items: center;
+    gap: 15px;
+    text-align: center;
+    text-wrap: pretty;
+    font-size: 28px;
+    color: white;
+    font-family: "NightBubble";
+}
+#promptRoomCode input, .roomCode{
+    width: 250px;
+    text-align: center;
+    font-size: 42px;
+    font-family: "EagleHorizon";
+    line-height: 2;
+    text-transform: uppercase;
+    background-color: var(--paper-color);
+}
+
+.roomCode{
+    position: absolute;
+    top: 5vh;
+    left: 5vh;
+}
+#playerLobby{
+    position: absolute;
+    display: flex;
+    justify-content: space-around;
+    width: 100vw;
+    height: 30vh;
+    left: 0vw;
+    bottom: 0vh;
+}
+#playerLobby .player{
+    display: grid;
+    align-items: center;
+}
+
+#startGame{
+    position: absolute;
+    place-self: center;
+    width: 100px;
+}
+
+
 #pastInfo{
     display: grid;
     grid-template-columns: 1fr 1fr;

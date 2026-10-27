@@ -12,6 +12,76 @@ const socket = io("http://localhost:3000", {
 
 const bodyElement = document.body;
 
+socket.on("promptRoomCode", () => {
+    const promptDiv = document.createElement("div");
+    promptDiv.id = "promptRoomCode";
+    const instructionText = document.createElement("p");
+    instructionText.textContent = "Enter an existing room code, or leave blank to create a new room.";
+    const roomCodeEntry = document.createElement("input");
+    roomCodeEntry.placeholder = "CODE";
+    roomCodeEntry.maxLength = "4";
+    roomCodeEntry.focus();
+
+    roomCodeEntry.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            let roomCode = roomCodeEntry.value;
+            if (roomCode == ""){
+                roomCode = (Math.random().toString(36).slice(2, 6)).toUpperCase();
+                socket.emit("joinedLobby", roomCode);
+                promptDiv.remove();
+            }
+            else if (roomCode.length == 4){
+                socket.emit("joinedLobby", roomCode, myID);
+                promptDiv.remove();
+            }
+            else{
+                // !! alert user than code must be 4 characters
+            } 
+        }
+    });
+    promptDiv.append(instructionText, roomCodeEntry);
+    bodyElement.appendChild(promptDiv);
+})
+
+socket.on("populateLobby", (roomCode, players, spiritID) => {
+    const roomCodeText = document.createElement("p");
+    roomCodeText.textContent = roomCode;
+    roomCodeText.classList.add("roomCode");
+    const playerLobby = document.createElement("div");
+    playerLobby.id = "playerLobby";
+
+    const spiritSelected = document.createElement("div");
+    spiritSelected.id = "spiritSelected";
+
+    const startGameButton = document.createElement("button");
+    startGameButton.id = "startGame";
+    startGameButton.textContent = "Start Game";
+    startGameButton.addEventListener("click", () => {
+        startGameButton.remove();
+        socket.emit("startGame", roomCode);
+    })
+    bodyElement.append(roomCodeText, spiritSelected, playerLobby, startGameButton);
+
+    players.forEach(player => {console.log(player); addPlayerToLobby(player)})
+})
+
+socket.on("newPlayerInLobby", (newPlayer) => {
+    console.log(newPlayer);
+    addPlayerToLobby(newPlayer);
+})
+
+socket.on("clearLobbyElements", () => {
+    removeExistingElement(".roomCode");
+    removeExistingElement("#spiritSelected");
+    removeExistingElement("#playerLobby");
+    removeExistingElement("#startGame");
+})
+
+
+socket.on("reconnection", (myGame) => {
+ // !! reconnect player in game
+})
+
 socket.on("chooseWord", (wordList) => {
     // !! A/B result testing
     const ABResults = document.createElement("div");
@@ -39,10 +109,10 @@ socket.on("chooseWord", (wordList) => {
     /// !! candle testing
     addFlamingCandle(ABResults);
     setTimeout(() => {
-        animateFlame("Flame2");
+        animateFlame("Flame");
     }, 100);
     setTimeout(() => {
-        animateFlame("Flame1");
+        animateFlame("Flame_flicker1");
     }, 1100);
 
     removeExistingElement("#chooseWord");
@@ -70,28 +140,30 @@ socket.on("chooseWord", (wordList) => {
     bodyElement.appendChild(wordChoicePopUp);
 })
 
-socket.on("chooseQuestion", (q1Text, q2Text) => {
-    const questionChoicePopUp = document.createElement("div");
-    questionChoicePopUp.id = "chooseQuestion";
+socket.on("chooseQuestion", (spiritID, q1Text, q2Text) => {
+    if (myID == spiritID){
+        const questionChoicePopUp = document.createElement("div");
+        questionChoicePopUp.id = "chooseQuestion";
 
-    const q1 = document.createElement("button");
-    q1.innerHTML = q1Text;
-    const or = document.createElement("p");
-    or.textContent = "or";
-    const q2 = document.createElement("button");
-    q2.innerHTML = q2Text;
+        const q1 = document.createElement("button");
+        q1.innerHTML = q1Text;
+        const or = document.createElement("p");
+        or.textContent = "or";
+        const q2 = document.createElement("button");
+        q2.innerHTML = q2Text;
 
-    q1.addEventListener("click", () => {
-        questionChoicePopUp.remove();
-        socket.emit("chosenQuestion", q1Text);
-    })
-    q2.addEventListener("click", () =>{
-        questionChoicePopUp.remove();
-        socket.emit("chosenQuestion", q2Text);
-    })
+        q1.addEventListener("click", () => {
+            questionChoicePopUp.remove();
+            socket.emit("chosenQuestion", q1Text);
+        })
+        q2.addEventListener("click", () =>{
+            questionChoicePopUp.remove();
+            socket.emit("chosenQuestion", q2Text);
+        })
 
-    questionChoicePopUp.append(q1, or, q2);
-    bodyElement.appendChild(questionChoicePopUp);
+        questionChoicePopUp.append(q1, or, q2);
+        bodyElement.appendChild(questionChoicePopUp);     
+    }
 })
 
 socket.on("questionToAnswer", (questionText) => {
@@ -99,10 +171,32 @@ socket.on("questionToAnswer", (questionText) => {
     allowGuessEntry(socket);
 })
 
+socket.on("evaluateQuestion", (spiritID, players) => {
+    if (myID == spiritID){
+        // !! evaluate question
+    }
+})
+
+socket.on("evaluateA/B", (spiritID, A, B) => {
+    if (myID == spiritID){
+        // !! evaluate A/B
+    }
+})
+
 socket.on("displayRevealedLetters", (revealedLetters) => {
     beginWordReveal(revealedLetters.length);
     revealAllLetters(revealedLetters);
 })
+
+function addPlayerToLobby([name, ID]){
+    const playerDiv = document.createElement("div");
+    playerDiv.classList.add("player");
+    const playerName = document.createElement("p");
+    playerName.textContent = name;
+    playerDiv.appendChild(playerName);
+
+    document.getElementById("playerLobby").appendChild(playerDiv);
+}
 
 function beginWordReveal(wordLength){
     removeExistingElement("#secretWord");
@@ -140,7 +234,7 @@ function allowGuessEntry(socket){
     bodyElement.appendChild(userGuess);
     guessEntry.focus();
 
-    guessEntry.addEventListener("keydown", function(e) {
+    guessEntry.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && guessEntry.value != "") {
             userGuess.remove();
             socket.emit("guessEntered", myID, guessEntry.value());

@@ -38,8 +38,40 @@ io.use((socket, next) => {
 let currentID = undefined;
 const ai = new GoogleGenAI({});
 
+class Lobby {
+    #roomCode
+    #allPlayers = [];
+    #spiritID = [];
+
+    constructor(roomCode){
+        this.#roomCode = roomCode;
+    }
+    addPlayer(newPlayer){
+        this.#allPlayers.push(newPlayer);
+    }
+    removePlayer(removePlayer){
+        const index = this.#allPlayers.indexOf(removePlayer);
+        this.#allPlayers.splice(index, 1);
+    }
+
+    set spiritID(newID){
+        this.#spiritID = newID;
+    }
+
+    get roomCode(){
+        return this.#roomCode;
+    }
+    get allPlayers(){
+        return this.#allPlayers;
+    }
+    get spiritID(){
+        return this.#spiritID;
+    }
+
+}
 class GameState {
-    #gameID;
+    #spiritID;
+    #players;
     #gameRound = 0;
     #gamePhase = "Word Generation";
     #wordList = [];
@@ -50,12 +82,13 @@ class GameState {
     #userAnswers;
     #spiritChoice;
 
-    constructor(numQuestions, gameID) {
+    constructor(numQuestions, spiritID, players) {
         while (this.#questionBank.size < numQuestions) {
             const randIndex = Math.floor(Math.random() * questions.length);
             this.#questionBank.add(questions[randIndex]);
         }
-        this.#gameID = gameID;
+        this.#spiritID = spiritID;
+        this.#players = players;
     }
 
     addToWordList(word){
@@ -92,11 +125,17 @@ class GameState {
         this.#currentQuestion = question;
     }
 
+    get spiritID(){
+        return this.#spiritID;
+    }
+    get players(){
+        return this.#players;
+    }
     get questionBank(){
         return [...this.#questionBank];
     }
     get gameRound(){
-        return this.#gameRound
+        return this.#gameRound;
     }
     get wordList(){
         return this.#wordList;
@@ -111,38 +150,114 @@ class GameState {
         return this.#gamePhase
     }
 }
+class Player {
+    #playerName;
+    #playerID;
+    #numPts = 0;
+    #currentGuess;
+    #isReady;
 
-const myGame = new GameState(6, crypto.randomUUID());
+    constructor (playerName, playerID) {
+        this.#playerName = playerName;
+        this.#playerID = playerID;
+    }
+    modifyPts(change){
+        this.#numPts += change;
+    }
 
-let generatedWords = false
-let generatingWords = false;
+    set currentGuess(newGuess){
+        this.#currentGuess = newGuess;
+    }
+    set isReady(newReadiness){
+        this.#isReady = newReadiness;
+    }
+
+    get playerName(){
+        return this.#playerName
+    }
+    get playerID(){
+        return this.#playerID;
+    }
+    get numPts(){
+        return this.#numPts;
+    }
+    get currentGuess(){
+        return this.#currentGuess;
+    }
+    get isReady(){
+        return this.#isReady;
+    }
+}
+
+const openLobbies = []
+const ongoingGames = [];
+
 
 /////////// SERVER EVENTS
-io.on("connection", (socket) => {   
-    if (myGame.wordList.length == 4){
-        socket.emit("chooseWord", myGame.wordList);
+io.on("connection", (socket) => {  
+    const inGame = ongoingGames.find(game => game.players.find(player => player.playerID == currentID))
+    if (inGame){
+        socket.emit("reconnection", inGame);
     }
-    else if (myGame.gamePhase == "Word Generation"){
-        myGame.gamePhase = "Waiting on Generation";
-        generateRandomWords(socket, 4);
+    else{
+        const myLobby = openLobbies.find(lobby => lobby.allPlayers.find(player => player.playerID == currentID));
+        if (myLobby){
+            const playersArray = myLobby.allPlayers.map(player => [player.playerName, player.playerID]);
+            socket.emit("populateLobby", myLobby.roomCode, playersArray, myLobby.spiritID);
+        }
+        else{
+            socket.emit("promptRoomCode");
+        }
     }
 
+    socket.on("joinedLobby", (roomCode, myID) => {
+        let existingLobby = openLobbies.find(lobby => lobby.allPlayers.find(player => player.playerID == currentID));
+        if (!existingLobby){
+            existingLobby = new Lobby(roomCode);
+            openLobbies.push(existingLobby);
+        }
+        // !! randomly generate starting names
+        const me = new Player("Test", myID);
+        existingLobby.addPlayer(me);
+        const playersArray = existingLobby.allPlayers.map(player => [player.playerName, player.playerID]);
+        socket.emit("populateLobby", roomCode, playersArray, existingLobby.spiritID);
+        socket.broadcast.emit("newPlayerInLobby", [me.playerName, myID]);
+    })
+
+    socket.on("startGame", (roomCode) => {
+        io.emit("clearLobbyElements");
+
+        const myLobby = openLobbies.find(lobby => lobby.roomCode == roomCode);
+        const myGame = new GameState(6, currentID, myLobby.allPlayers);
+
+        const lobbyIndex = openLobbies.indexOf(myLobby);
+        openLobbies.splice(lobbyIndex, 1);
+
+        ongoingGames.push(myGame);
+        myGame.gamePhase = "Waiting on Generation";
+        generateRandomWords(socket, 4, currentID);
+    })
+
     socket.on("chosenWord", (wordToGuess) => {
+        const myGame = ongoingGames.find(game => game.spiritID == currentID);
         myGame.secretWord = wordToGuess;
         myGame.gamePhase = "Question Generation";
-        chooseQuestion(socket, 0);
+        chooseQuestion(socket, myGame, 0);
     })
 
     socket.on("chosenQuestion", (questionText) => {
+        const myGame = ongoingGames.find(game => game.spiritID == currentID);
         myGame.currentQuestion = questionText;
         myGame.gamePhase = "Question Responses";
-
-        // !! make socket.broadcast.emit for multiplayer functionality
-        socket.emit("questionToAnswer", (questionText));
+        socket.broadcast.emit("questionToAnswer", (questionText));
     })
 
     socket.on("guessEntered", (playerID, playerGuess) => {
-        // !! save guess to Player object with playerID
+        const myGame = ongoingGames.find(game => game.players.find(player => player.playerID == playerID));
+        const me = myGame.players.find(player => player.playerID == playerID);
+        me.currentGuess = playerGuess;
+        me.isReady = true;
+        checkReadiness(myGame);
     })
 
 
@@ -159,17 +274,18 @@ httpServer.listen(port, function () {
     console.log('App listening at https://%s:%s', host, port)
 });
 
-function chooseQuestion(socket, questionRound){
+function chooseQuestion(socket, myGame, questionRound){
     if (myGame.gamePhase == "Question Generation"){
         const q1 = myGame.questionBank[2*questionRound];
         const q2 = myGame.questionBank[2*questionRound + 1];
 
         myGame.gamePhase = "Question Selection";
-        socket.emit("chooseQuestion", q1, q2);
+        socket.emit("chooseQuestion", myGame.spiritID, q1, q2);
     }
 }
 
-async function generateRandomWords(socket, numWordsToGenerate){
+async function generateRandomWords(socket, numWordsToGenerate, spiritID){
+    const myGame = ongoingGames.find(game => game.spiritID == spiritID);
     const res = await fetch("https://randomapi.dev/api/words?type=noun&count=50");
     const { data, meta } = await res.json();
 
@@ -196,4 +312,20 @@ async function generateRandomWords(socket, numWordsToGenerate){
     }
     myGame.gamePhase = "Word Selection";
     socket.emit("chooseWord", myGame.wordList);
+}
+
+function checkReadiness(myGame){
+    const waitingOnPlayer = myGame.players.find(player => !player.isReady);
+    if (!waitingOnPlayer){
+        switch(myGame.gamePhase){
+            case "Question Response":
+                myGame.gamePhase = "Question Evaluation";
+                io.emit("evaluateQuestion", myGame.spiritID, myGame.players);
+                break;
+            case "A/B Response":
+                myGame.gamePhase = "A/B Evaluation";
+                // !! split into pairs and set to spirit
+                break;
+        }
+    }
 }
