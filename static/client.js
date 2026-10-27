@@ -44,6 +44,8 @@ socket.on("promptRoomCode", () => {
 })
 
 socket.on("populateLobby", (roomCode, players, spiritID) => {
+    addFlamingCandle(document.getElementById("candle"));
+
     const roomCodeText = document.createElement("p");
     roomCodeText.textContent = roomCode;
     roomCodeText.classList.add("roomCode");
@@ -87,8 +89,6 @@ socket.on("chooseWord", (wordList) => {
     const ABResults = document.createElement("div");
     ABResults.id = "ABResults"
 
-    const choices = document.createElement("div");
-    choices.classList.add("choices");
 
     const answerA = document.createElement("div");
     answerA.classList.add("answer");
@@ -102,18 +102,8 @@ socket.on("chooseWord", (wordList) => {
     BText.textContent = "Avalanche";
     answerB.appendChild(BText);
 
-    choices.append(answerA, answerB);
-    ABResults.appendChild(choices);
+    ABResults.append(answerA, answerB);
     bodyElement.appendChild(ABResults);
-
-    /// !! candle testing
-    addFlamingCandle(ABResults);
-    setTimeout(() => {
-        animateFlame("Flame");
-    }, 100);
-    setTimeout(() => {
-        animateFlame("Flame_flicker1");
-    }, 1100);
 
     removeExistingElement("#chooseWord");
     const wordChoicePopUp = document.createElement("div");
@@ -279,10 +269,7 @@ async function addFlamingCandle(divToAddTo){
     const flameSvg = flameDoc.querySelector("svg");
     flameSvg.classList.add("flame");
 
-    const candleDiv = document.createElement("div");
-    candleDiv.id = "candle";
-    candleDiv.append(flameSvg, candleSvg);
-    divToAddTo.appendChild(candleDiv);
+    divToAddTo.append(flameSvg, candleSvg);
 }
 async function animateFlame(newFlame) {
     const newFlameText = await svgToText(`/static/Images/${newFlame}.svg`);
