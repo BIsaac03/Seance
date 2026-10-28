@@ -73,7 +73,7 @@ class GameState {
     #revealedLetters = [];
     #questionBank = new Set([]);
     #currentQuestion;
-    #userAnswers;
+    #userAnswers = [];
     #spiritChoice;
 
     constructor(numQuestions, spiritID, players) {
@@ -88,6 +88,9 @@ class GameState {
     addToWordList(word){
         this.#wordList.push(word);
     }
+    addUserAnswer(playerID, answer){
+        this.#userAnswers.push([playerID, answer]);
+    }
     revealWordLength(){
         for (let i = 0; i < this.#secretWord[0].length; i++){
             this.#revealedLetters.push(undefined);
@@ -101,7 +104,7 @@ class GameState {
     newRound(){
         this.#gameRound++;
         this.#currentQuestion = undefined;
-        this.#userAnswers = undefined;
+        this.#userAnswers.length = 0;
         this.#spiritChoice = undefined;
     }
 
@@ -131,6 +134,12 @@ class GameState {
     get players(){
         return this.#players;
     }
+    get currentQuestion(){
+        return this.#currentQuestion;
+    }
+    get userAnswers(){
+        return this.#userAnswers;
+    }
     get questionBank(){
         return [...this.#questionBank];
     }
@@ -154,7 +163,6 @@ class Player {
     #playerName;
     #playerID;
     #numPts = 0;
-    #currentGuess;
     #isReady;
 
     constructor (playerName, playerID) {
@@ -165,9 +173,6 @@ class Player {
         this.#numPts += change;
     }
 
-    set currentGuess(newGuess){
-        this.#currentGuess = newGuess;
-    }
     set isReady(newReadiness){
         this.#isReady = newReadiness;
     }
@@ -180,9 +185,6 @@ class Player {
     }
     get numPts(){
         return this.#numPts;
-    }
-    get currentGuess(){
-        return this.#currentGuess;
     }
     get isReady(){
         return this.#isReady;
@@ -202,6 +204,10 @@ io.on("connection", (socket) => {
         
         if (socket.currentID == inGame.spiritID){
             switch(inGame.gamePhase){
+                case "Waiting on Generation":
+                    socket.emit("displayMessage", "Generating Words...");
+                    break;
+
                 case "Word Selection":
                     socket.emit("chooseWord", inGame.wordList);
                     break;
@@ -211,7 +217,7 @@ io.on("connection", (socket) => {
                     break;
 
                 case "Question Evaluation":
-                    socket.emit("evaluateQuestion", socket.currentID, inGame.players);
+                    socket.emit("evaluateQuestion", socket.currentID, inGame.userAnswers);
                     break;
 
                 case "A/B Evaluation":
@@ -245,7 +251,7 @@ io.on("connection", (socket) => {
     })
 
     socket.on("startGame", (roomCode, myID) => {
-        io.emit("clearLobbyElements");
+        io.emit("clearLobbyElements", myID);
 
         const myLobby = openLobbies.find(lobby => lobby.roomCode == roomCode);
 
@@ -267,31 +273,35 @@ io.on("connection", (socket) => {
         chooseQuestion(socket, myGame);
     })
 
-    socket.on("chosenQuestion", (questionText, spiritID) => {
+    socket.on("chosenQuestion", (spiritID, questionText) => {
         const myGame = ongoingGames.find(game => game.spiritID == spiritID);
         myGame.currentQuestion = questionText;
-        myGame.gamePhase = "Question Responses";
+        myGame.gamePhase = "Question Response";
         myGame.players.forEach(player => {
             player.isReady = false;
         });
-        socket.broadcast.emit("questionToAnswer", (questionText));
+        io.emit("questionToAnswer", spiritID, questionText);
     })
 
     socket.on("guessEntered", (playerID, playerGuess) => {
         const myGame = ongoingGames.find(game => game.players.find(player => player.playerID == playerID));
+        myGame.addUserAnswer(playerID, playerGuess);
         const me = myGame.players.find(player => player.playerID == playerID);
-        me.currentGuess = playerGuess;
         me.isReady = true;
         checkReadiness(myGame);
     })
 
-
-    socket.on("evaluatedQuestionAnswers", (winner) => {
-        // !! reveal and save chosen answer 
-    })
-    socket.on("evaluatedCloserWord", (ranking) => {
+    socket.on("evaluatedQuestionAnswers", (spiritID, winner) => {
         // !! reveal and save chosen ranking
     })
+
+    socket.on("evaluatedQuestionAnswers", (spiritID, userAnswers, parts, partNum, ranking) => {
+        if (partNum < (parts - 1)){
+            io.emit("evaluateA/B", spiritID, userAnswers, parts, partNum + 1);
+        }
+        // !! reveal and save chosen answer 
+    })
+
 })
 httpServer.listen(port, function () {
     var host = httpServer.address().address
@@ -300,7 +310,6 @@ httpServer.listen(port, function () {
 });
 
 function chooseQuestion(socket, myGame){
-    console.log("choosing question");
     // !! modify questionRound based on number of players (-1 for spirit)
     const questionRound = myGame.gameRound - 8*(eval(myGame.gameRound > 2));
     const q1 = myGame.questionBank[2*questionRound];
@@ -308,7 +317,7 @@ function chooseQuestion(socket, myGame){
 
 
     myGame.gamePhase = "Question Selection";
-    socket.emit("chooseQuestion", myGame.spiritID, q1, q2);
+    io.emit("chooseQuestion", myGame.spiritID, q1, q2);
 }
 
 async function generateRandomWords(socket, numWordsToGenerate, spiritID){
@@ -318,9 +327,9 @@ async function generateRandomWords(socket, numWordsToGenerate, spiritID){
 
     const modelResponse = await ai.models.generateContent({
         model: "gemini-3.5-flash-lite",
-        contents:  `Examine these nouns: ${JSON.stringify(data)}. For each, evaluate how difficult it would be to guess using yes/no questions. Rate physical objects as easier than ideas, gerunds, and the like. 
+        contents:  `Examine these nouns: ${JSON.stringify(data)}. For each, evaluate how difficult it would be to guess using yes/no questions. Rate physical, everyday objects as easier than ideas, gerunds, and the like. 
                     Uncommon words are difficult to guess. Respond only with a string  of 50 digits, each corresponding value from 1(easiest) - 9(hardest). Pay special attention to values you assign to words in the 1-5 range.
-                    Use the following examples as a rough guidline 1: car, arm, house; 2: finger, bottle, tissue; 3: coaster, driveway, whisker; 4: antennae, cord, alarm; 5: diorite, flow, occupation;`,
+                    Use the following examples as a rough guidline 1: car, arm, house; 2: finger, bottle, tissue; 3: coaster, driveway, whisker; 4: antennae, cord, alarm; 5: diorite, flow, occupation; About half of the words should fit in this range.`,
     });
 
     let numValidCandidates = 0;
@@ -342,16 +351,18 @@ async function generateRandomWords(socket, numWordsToGenerate, spiritID){
 }
 
 function checkReadiness(myGame){
-    const waitingOnPlayer = myGame.players.find(player => !player.isReady);
+    const waitingOnPlayer = myGame.players.find(player => (!player.isReady && player.playerID != myGame.spiritID));
     if (!waitingOnPlayer){
+        console.log("All playeres ready!");
+        console.log(myGame.gamePhase);
         switch(myGame.gamePhase){
             case "Question Response":
                 myGame.gamePhase = "Question Evaluation";
-                io.emit("evaluateQuestion", myGame.spiritID, myGame.players);
+                io.emit("evaluateQuestion", myGame.spiritID, myGame.userAnswers);
                 break;
             case "A/B Response":
                 myGame.gamePhase = "A/B Evaluation";
-                // !! split into pairs and set to spirit
+                io.emit("evaluateA/B", myGame.spiritID, myGame.userAnswers, 2, 0);
                 break;
         }
     }

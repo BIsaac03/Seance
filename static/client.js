@@ -52,8 +52,6 @@ socket.on("populateLobby", (roomCode, players) => {
     const roomCodeText = document.createElement("p");
     roomCodeText.textContent = roomCode;
     roomCodeText.classList.add("roomCode");
-    const playerLobby = document.createElement("div");
-    playerLobby.id = "playerLobby";
 
     const startGameButton = document.createElement("button");
     startGameButton.id = "startGame";
@@ -62,12 +60,9 @@ socket.on("populateLobby", (roomCode, players) => {
         startGameButton.remove();
         socket.emit("startGame", roomCode, myID);
 
-        const waitingMessage = document.createElement("p");
-        waitingMessage.textContent = "Generating Words..."
-        waitingMessage.classList.add("waitingMessage");
-        bodyElement.appendChild(waitingMessage);
+        addWaitingMessage("Generating Words...");
     })
-    bodyElement.append(roomCodeText, playerLobby, startGameButton);
+    bodyElement.append(roomCodeText, startGameButton);
 
     players.forEach(player => {addPlayerToLobby(player)})
 })
@@ -76,17 +71,18 @@ socket.on("newPlayerInLobby", (newPlayer) => {
     addPlayerToLobby(newPlayer);
 })
 
-socket.on("clearLobbyElements", () => {
+socket.on("clearLobbyElements", (spiritID) => {
     removeExistingElement(".roomCode");
-    removeExistingElement("#playerLobby");
     removeExistingElement("#startGame");
-})
 
+    if (myID != spiritID){
+        addWaitingMessage("The spirit is deliberating on their word...")
+    }
+})
 
 socket.on("reconnection", (spiritID, gamePhase, gameRound, currentQuestion, revealedLetters, isReady) => {
     addFlamingCandle(document.getElementById("candle"));
     
-    console.log(`spiritID: ${spiritID}, myID: ${myID}`);
     if (myID != spiritID){
         if (!isReady){
             switch(gamePhase){
@@ -102,6 +98,10 @@ socket.on("reconnection", (spiritID, gamePhase, gameRound, currentQuestion, reve
             }
         }
     }
+})
+
+socket.on("displayMessage", (message) => {
+    addWaitingMessage(message);
 })
 
 socket.on("chooseWord", (wordList) => {
@@ -135,22 +135,43 @@ socket.on("chooseQuestion", (spiritID, q1, q2) => {
     if (myID == spiritID){
         chooseQuestion(q1, q2)  
     }
-})
-
-socket.on("questionToAnswer", (questionText) => {
-    displayQuestion(questionText);
-    allowGuessEntry(socket);
-})
-
-socket.on("evaluateQuestion", (spiritID, players) => {
-    if (myID == spiritID){
-        // !! evaluate question
+    else{
+        removeExistingElement(".waitingMessage");
+        addWaitingMessage("The spirit is sending a question from beyond the veil...");
     }
 })
 
-socket.on("evaluateA/B", (spiritID, A, B) => {
+socket.on("questionToAnswer", (spiritID, questionText) => {
+    removeExistingElement(".waitingMessage");
+    displayQuestion(questionText);
+
+    if (myID != spiritID){
+        allowGuessEntry(socket);
+    }
+})
+
+socket.on("evaluateQuestion", (spiritID, anwers) => {
+    removeExistingElement("#answerDisplay");
+
+    const textAnswers = anwers.map(pair => pair[1]);
+    displayQuestionAnswers(textAnswers)
+    if (myID == spiritID){
+        // !! evaluate question
+
+        socket.emit("evaluatedQuestionAnswers", spiritID, winner);
+
+    }
+})
+
+socket.on("evaluateA/B", (spiritID, choices, parts, partNum) => {
+    removeExistingElement("#ABResults");
+
+    displayABChoices(choices[partNum][1], choices[partNum + 1][1])
+
     if (myID == spiritID){
         // !! evaluate A/B
+
+        socket.emit("evaluatedCloserWord", spiritID, choices, parts, partNum, ranking);
     }
 })
 
@@ -166,7 +187,7 @@ function addPlayerToLobby([name, ID]){
     playerName.textContent = name;
     playerDiv.appendChild(playerName);
 
-    document.getElementById("playerLobby").appendChild(playerDiv);
+    document.getElementById("table").appendChild(playerDiv);
 }
 
 function beginWordReveal(wordLength){
@@ -199,11 +220,11 @@ function chooseQuestion(q1Text, q2Text){
 
     q1.addEventListener("click", () => {
         questionChoicePopUp.remove();
-        socket.emit("chosenQuestion", q1Text, myID);
+        socket.emit("chosenQuestion", myID, q1Text);
     })
     q2.addEventListener("click", () =>{
         questionChoicePopUp.remove();
-        socket.emit("chosenQuestion", q2Text, myID);
+        socket.emit("chosenQuestion", myID, q2Text);
     })
 
     questionChoicePopUp.append(q1, or, q2);
@@ -237,8 +258,20 @@ function allowGuessEntry(socket){
     });
 }
 
-function displayQuestionAnswers(){
+function displayQuestionAnswers(answers){
+    const answerDisplay = document.createElement("div");
+    answerDisplay.id = "answerDisplay";
+    answers.forEach(answer => {
+        const answerDiv = document.createElement("div");
+        answerDiv.classList.add("answer");
 
+        const answerText = document.createElement("p");
+        answerText.textContent = answer;
+        answerDiv.appendChild(answerText);
+
+        answerDisplay.appendChild(answerDiv);
+    })
+    bodyElement.appendChild(answerDisplay);
 }
 
 function displayABChoices(a, b){
@@ -271,6 +304,13 @@ function revealAllLetters(revealedLetters){
             revealLetter(i, revealedLetters[i]);
         }
     }
+}
+
+function addWaitingMessage(message){
+    const waitingMessage = document.createElement("p");
+    waitingMessage.textContent = message
+    waitingMessage.classList.add("waitingMessage");
+    bodyElement.appendChild(waitingMessage);
 }
 
 function removeExistingElement(querySelector){
