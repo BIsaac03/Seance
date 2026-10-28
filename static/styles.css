@@ -28,7 +28,8 @@ body{
 
 #promptRoomCode{
     position: absolute;
-    place-self: center;
+    top: 10vh;
+    left: 10vw;
     width: 350px;
     display: grid;
     justify-items: center;
@@ -70,8 +71,14 @@ body{
 
 #startGame{
     position: absolute;
-    place-self: center;
-    width: 100px;
+    justify-self: center;
+    width: 410px;
+    top: 4vh;
+    padding: 10px 0;
+    font-size: 42px;
+    font-family: "NightBubble";
+    border: 5px dashed gray;
+    border-radius: 20px;
 }
 
 
@@ -203,6 +210,7 @@ body{
     background-color: lightgray;
     font-family: inherit;
     letter-spacing: inherit;
+    border: 5px outset goldenrod;
 }
 #chooseWord button{
     padding: 25px 15px 15px 20px;
@@ -292,6 +300,14 @@ svg{
 }
 #userGuess input:focus{
     outline: none;
+}
+
+.waitingMessage{
+    position: absolute;
+    place-self: center;
+    font-size: 50px;
+    font-family: "NightBubble";
+    text-shadow: 0 0 10px white;
 }
 
 
