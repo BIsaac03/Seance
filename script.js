@@ -327,7 +327,7 @@ async function generateRandomWords(socket, numWordsToGenerate, spiritID){
 
     const modelResponse = await ai.models.generateContent({
         model: "gemini-3.5-flash-lite",
-        contents:  `Examine these nouns: ${JSON.stringify(data)}. For each, evaluate how difficult it would be to guess using yes/no questions. Rate physical, everyday objects as easier than ideas, gerunds, and the like. 
+        contents:  `Examine these nouns: ${JSON.stringify(data)}. For each, evaluate how difficult it would be to guess using yes/no questions. Rate physical, everyday objects as significantly easier than ideas, gerunds, and non-physical concepts. 
                     Uncommon words are difficult to guess. Respond only with a string  of 50 digits, each corresponding value from 1(easiest) - 9(hardest). Pay special attention to values you assign to words in the 1-5 range.
                     Use the following examples as a rough guidline 1: car, arm, house; 2: finger, bottle, tissue; 3: coaster, driveway, whisker; 4: antennae, cord, alarm; 5: diorite, flow, occupation; About half of the words should fit in this range.`,
     });

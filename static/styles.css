@@ -7,6 +7,7 @@
     --correct-color: cornsilk;
     --incorrect-color: #5f5d56;
     --paper-color: antiquewhite;
+    --dark-background: #332f2f;
     --lightning-color1: #d2d6da42;
     --lightning-color2: #d2d6da81;
 }
@@ -18,9 +19,13 @@
     font-family: "NightBubble";
     src: url("./NightBubble.ttf");
 }
+@font-face {
+    font-family: "HelpMe";
+    src: url("./HelpMe.ttf");
+}
 body{
     display: grid;
-    background-color: #332f2f;
+    background-color: var(--dark-background);
     width: 100vw;
     height: 100vh;
     overflow: hidden;
@@ -47,7 +52,7 @@ body{
     font-family: "EagleHorizon";
     line-height: 2;
     text-transform: uppercase;
-    background-color: var(--paper-color);
+    background-color: white;
 }
 
 .roomCode{
@@ -55,7 +60,8 @@ body{
     top: 5vh;
     left: 5vh;
 }
-#playerLobby{
+#table{
+    display: block;
     position: absolute;
     display: flex;
     justify-content: space-around;
@@ -63,10 +69,20 @@ body{
     height: 30vh;
     left: 0vw;
     bottom: 0vh;
+    perspective: 1000px;
+    perspective-origin: bottom;
+    background: rgb(145 115 115);
+    z-index: -2;
 }
-#playerLobby .player{
+#table .player{
+    transform: translateY(35px) rotateX(50deg);
+    font-size: 50px;
+    font-style: oblique 20deg;
     display: grid;
-    align-items: center;
+    align-items: end;
+    transform-style: preserve-3d;
+    font-family: "HelpMe";
+    text-shadow: -2px -2px pink;
 }
 
 #startGame{
@@ -108,7 +124,7 @@ body{
 .question{
     display: grid;
     gap: 30px;
-    background-color: whitesmoke;
+    background-color: white;
     padding: 20px;
     border-radius: 20px;
     box-shadow: 0 5px 5px 4px #bbbbbb;
@@ -193,6 +209,9 @@ body{
 #chooseWord{
     grid-template: 1fr 1fr / 1fr 1fr;
 }
+#chooseWord div{
+    width: 100%;
+}
 #chooseQuestion{
     text-align: center;
 }
@@ -200,23 +219,27 @@ body{
     position: relative;
     top: -74%;
     left: 6%;
+    color: white;
     font-size: 20px;
 }
 
 #chooseWord button, #chooseQuestion button{
+    color: white;
     font-size: 6vh;
     padding: 20px;
     border-radius: 10px;
-    background-color: lightgray;
+    background-color: var(--dark-background);
     font-family: inherit;
     letter-spacing: inherit;
-    border: 5px outset goldenrod;
 }
 #chooseWord button{
+    width: 100%;
     padding: 25px 15px 15px 20px;
+    border: 5px outset darkgoldenrod;
 }
 #chooseQuestion button{
     width: 60vw;
+    border: 5px outset;
 }
 
 #secretWord{
@@ -284,7 +307,7 @@ svg{
 #userGuess{
     position: absolute;
     justify-self: center;
-    top: 60vh;
+    top: 65vh;
     display: grid;
     box-shadow: 0 0 15px 20px black;
 }
@@ -305,9 +328,12 @@ svg{
 .waitingMessage{
     position: absolute;
     place-self: center;
+    width: 750px;
     font-size: 50px;
     font-family: "NightBubble";
     text-shadow: 0 0 10px white;
+    text-wrap: pretty;
+    text-align: center;
 }
 
 
@@ -331,15 +357,4 @@ body::before{
                 linear-gradient(to right, transparent calc(50% - 10px), black calc(50% - 10px),  black calc(50% + 10px), transparent calc(50% + 10px)),
                 radial-gradient(circle at center, var(--lightning-color1)),
                 radial-gradient(circle at top right, #484e53 0%, #343b41 100%);
-}
-body::after{
-    position: absolute;
-    content: "";
-    display: block;
-    width: 100vw;
-    height: 30vh;
-    left: 0vw;
-    bottom: 0vh;
-    background: rgb(145 115 115);
-    z-index: -2;
 }

@@ -15,6 +15,23 @@ const bodyElement = document.body;
 socket.on("promptRoomCode", () => {
     addFlamingCandle(document.getElementById("candle"));
 
+    // !! flame testing
+    setTimeout(() => {
+        animateFlame("flameMiddleFlicker1");
+    }, 1000);
+    setTimeout(() => {
+        animateFlame("flameMiddleFlicker2");
+    }, 3000);
+        setTimeout(() => {
+        animateFlame("flameLeftWeak");
+    }, 5000);
+    setTimeout(() => {
+        animateFlame("flameMiddle");
+    }, 7000);
+    setTimeout(() => {
+        animateFlame("flameRightWeak");
+    }, 9000);
+
     const promptDiv = document.createElement("div");
     promptDiv.id = "promptRoomCode";
     const instructionText = document.createElement("p");
@@ -330,7 +347,7 @@ async function addFlamingCandle(){
     candleDiv.innerHTML = "";
 
     const candleText = await svgToText("/static/Images/Candle.svg");
-    const flameText = await svgToText("/static/Images/Flame.svg");
+    const flameText = await svgToText("/static/Images/flameMiddle.svg");
 
     const parser = new DOMParser();
     const candleDoc = parser.parseFromString(candleText, "image/svg+xml");
