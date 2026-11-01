@@ -15,23 +15,6 @@ const bodyElement = document.body;
 socket.on("promptRoomCode", () => {
     addFlamingCandle(document.getElementById("candle"));
 
-    // !! flame testing
-    setTimeout(() => {
-        animateFlame("flameMiddleFlicker1");
-    }, 1000);
-    setTimeout(() => {
-        animateFlame("flameMiddleFlicker2");
-    }, 3000);
-        setTimeout(() => {
-        animateFlame("flameLeftWeak");
-    }, 5000);
-    setTimeout(() => {
-        animateFlame("flameMiddle");
-    }, 7000);
-    setTimeout(() => {
-        animateFlame("flameRightWeak");
-    }, 9000);
-
     const promptDiv = document.createElement("div");
     promptDiv.id = "promptRoomCode";
     const instructionText = document.createElement("p");
@@ -100,18 +83,20 @@ socket.on("clearLobbyElements", (spiritID) => {
 socket.on("reconnection", (spiritID, gamePhase, gameRound, currentQuestion, revealedLetters, isReady) => {
     addFlamingCandle(document.getElementById("candle"));
     
+    if (gamePhase == "Question Response" || gamePhase == "Questions Evaluation"){
+        displayQuestion(currentQuestion);
+    }
+    else if (gamePhase == "A/B Response"){
+        displayQuestion("Write the closer word in a head-to-head");
+    }
+
     if (myID != spiritID){
+        if (gamePhase == "A/B Evaluation"){
+            // !! display A/B choices
+        }
         if (!isReady){
-            switch(gamePhase){
-                case "Question Response":
-                    displayQuestion(currentQuestion);
-                    allowGuessEntry(socket);
-                    break;
-                
-                case "A/B Response":
-                    displayQuestion("Write the closer word in a head-to-head");
-                    allowGuessEntry(socket);
-                    break;
+            if (gamePhase == "Question Response" || gamePhase == "A/B Response"){
+                allowGuessEntry(socket);
             }
         }
     }
@@ -168,20 +153,22 @@ socket.on("questionToAnswer", (spiritID, questionText) => {
 })
 
 socket.on("evaluateQuestion", (spiritID, anwers) => {
-    removeExistingElement("#answerDisplay");
-
     const textAnswers = anwers.map(pair => pair[1]);
+    console.log(textAnswers);
     displayQuestionAnswers(textAnswers)
     if (myID == spiritID){
-        // !! evaluate question
-
-        socket.emit("evaluatedQuestionAnswers", spiritID, winner);
-
+        const potentialAnswers = document.querySelectorAll("#answerDisplay .answer");
+        for (let i = 0; i < potentialAnswers.length; i++){
+            potentialAnswers[i].classList.add("markable");
+            potentialAnswers[i].addEventListener("click", () => {
+                socket.emit("evaluatedQuestionAnswers", spiritID, i);
+            })
+        }
     }
 })
 
 socket.on("evaluateA/B", (spiritID, choices, parts, partNum) => {
-    removeExistingElement("#ABResults");
+    removeExistingElement("#ABDisplay");
 
     displayABChoices(choices[partNum][1], choices[partNum + 1][1])
 
@@ -190,6 +177,50 @@ socket.on("evaluateA/B", (spiritID, choices, parts, partNum) => {
 
         socket.emit("evaluatedCloserWord", spiritID, choices, parts, partNum, ranking);
     }
+})
+
+socket.on("revealQuestionAnswer", (winner) => {
+    const correctAnswer = document.querySelector(`#answerDisplay :nth-child(${winner + 1}`);
+    correctAnswer.classList.add("correct");
+})
+socket.on("revealRanking", (ranking) => {
+    if (ranking < 3){
+        setTimeout(() => {
+            animateFlame("flameLeftWeak");
+        }, 1000);
+        if (ranking < 2){
+            setTimeout(() => {
+                animateFlame("flameLeft");
+            }, 2000);
+            if (ranking < 1){
+                setTimeout(() => {
+                    animateFlame("flameLeftStrong");
+                }, 3000);
+            }
+        }
+    }
+    else{
+        setTimeout(() => {
+            animateFlame("flameRightWeak");
+        }, 1000);
+        if (ranking > 3){
+            setTimeout(() => {
+                animateFlame("flameRight");
+            }, 2000);
+            if (ranking > 4){
+                setTimeout(() => {
+                    animateFlame("flameRightStrong");
+                }, 3000);
+            }
+        }
+    }
+})
+
+socket.on("cleanUp", () => {
+    console.log("Cleaning Up");
+    removeExistingElement("#questionDisplay");
+    removeExistingElement("#answerDisplay");
+    removeExistingElement("#ABDisplay");
 })
 
 socket.on("displayRevealedLetters", (revealedLetters) => {
@@ -270,7 +301,7 @@ function allowGuessEntry(socket){
     guessEntry.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && guessEntry.value != "") {
             userGuess.remove();
-            socket.emit("guessEntered", myID, guessEntry.value());
+            socket.emit("guessEntered", myID, guessEntry.value);
         }
     });
 }
@@ -292,8 +323,9 @@ function displayQuestionAnswers(answers){
 }
 
 function displayABChoices(a, b){
-    const ABResults = document.createElement("div");
-    ABResults.id = "ABResults"
+    console.log("ABDisplay");
+    const ABDisplay = document.createElement("div");
+    ABDisplay.id = "ABDisplay"
 
     const answerA = document.createElement("div");
     answerA.classList.add("answer");
@@ -307,8 +339,8 @@ function displayABChoices(a, b){
     BText.textContent = b;
     answerB.appendChild(BText);
 
-    ABResults.append(answerA, answerB);
-    bodyElement.appendChild(ABResults);
+    ABDisplay.append(answerA, answerB);
+    bodyElement.appendChild(ABDisplay);
 }
 
 function revealLetter(index, value){

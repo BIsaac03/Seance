@@ -153,10 +153,19 @@ body{
     letter-spacing: 1px;
     font-size: 42px;
 }
-.answer.correct{
+.answer.correct, .answer.markable:hover{
     width: calc(100% + 10px);
     height: calc(100% + 10px);
     font-weight: bold;
+}
+
+#answerDisplay{
+    position: absolute;
+    place-self: center;
+    top: 20vh;
+    display: grid;
+    gap: 150px 250px;
+    grid-template: 1fr 1fr / 1fr 1fr;
 }
 
 .A\/B-testing{
@@ -335,8 +344,6 @@ svg{
     text-wrap: pretty;
     text-align: center;
 }
-
-
 
 #illuminationLayer {  
     background: radial-gradient(circle at 50% 33%, transparent, #000000a6);

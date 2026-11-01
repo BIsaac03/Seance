@@ -38,11 +38,13 @@ io.use((socket, next) => {
 const ai = new GoogleGenAI({});
 
 class Lobby {
-    #roomCode
+    #roomCode;
+    #lobbyID;
     #allPlayers = [];
 
     constructor(roomCode){
         this.#roomCode = roomCode;
+        this.#lobbyID = crypto.randomUUID();
     }
     addPlayer(newPlayer){
         this.#allPlayers.push(newPlayer);
@@ -55,15 +57,22 @@ class Lobby {
     set roomCode(newCode){
         this.#roomCode = newCode;
     }
+    set lobbyID(newID){
+        this.#lobbyID = newID;
+    }
 
     get roomCode(){
         return this.#roomCode;
+    }
+    get lobbyID(){
+        return this.#lobbyID;
     }
     get allPlayers(){
         return this.#allPlayers;
     }
 }
 class GameState {
+    #gameID;
     #spiritID;
     #players = [];
     #gameRound = 0;
@@ -74,15 +83,17 @@ class GameState {
     #questionBank = new Set([]);
     #currentQuestion;
     #userAnswers = [];
+    #pastResults = [];
     #spiritChoice;
 
-    constructor(numQuestions, spiritID, players) {
+    constructor(gameID, spiritID, players, numQuestions) {
+        this.#gameID = gameID;
+        this.#spiritID = spiritID;
+        this.#players = players;
         while (this.#questionBank.size < numQuestions) {
             const randIndex = Math.floor(Math.random() * questions.length);
             this.#questionBank.add(questions[randIndex]);
         }
-        this.#spiritID = spiritID;
-        this.#players = players;
     }
 
     addToWordList(word){
@@ -90,6 +101,9 @@ class GameState {
     }
     addUserAnswer(playerID, answer){
         this.#userAnswers.push([playerID, answer]);
+    }
+    addResult(result){
+        this.#pastResults.push(result);
     }
     revealWordLength(){
         for (let i = 0; i < this.#secretWord[0].length; i++){
@@ -106,9 +120,14 @@ class GameState {
         this.#currentQuestion = undefined;
         this.#userAnswers.length = 0;
         this.#spiritChoice = undefined;
+        this.#players.forEach(player => {
+            player.isReady = false;
+        });
     }
 
-
+    set gameID(ID){
+        this.#gameID = ID;
+    }
     set spiritID(newID){
         this.#spiritID = newID;
     }
@@ -128,6 +147,9 @@ class GameState {
         this.#currentQuestion = question;
     }
 
+    get gameID(){
+        return this.#gameID;
+    }
     get spiritID(){
         return this.#spiritID;
     }
@@ -136,6 +158,9 @@ class GameState {
     }
     get currentQuestion(){
         return this.#currentQuestion;
+    }
+    get pastResults(){
+        return this.#pastResults;
     }
     get userAnswers(){
         return this.#userAnswers;
@@ -217,7 +242,7 @@ io.on("connection", (socket) => {
                     break;
 
                 case "Question Evaluation":
-                    socket.emit("evaluateQuestion", socket.currentID, inGame.userAnswers);
+                    io.to(inGame.spiritID).emit("evaluateQuestion", socket.currentID, inGame.userAnswers);
                     break;
 
                 case "A/B Evaluation":
@@ -242,21 +267,21 @@ io.on("connection", (socket) => {
             existingLobby = new Lobby(roomCode);
             openLobbies.push(existingLobby);
         }
+        socket.join(existingLobby.lobbyID);
+
         // !! randomly generate starting names
         const me = new Player("Test", myID);
         existingLobby.addPlayer(me);
         const playersArray = existingLobby.allPlayers.map(player => [player.playerName, player.playerID]);
         socket.emit("populateLobby", roomCode, playersArray);
-        socket.broadcast.emit("newPlayerInLobby", [me.playerName, myID]);
+        socket.to(existingLobby.lobbyID).emit("newPlayerInLobby", [me.playerName, myID]);
     })
 
-    socket.on("startGame", (roomCode, myID) => {
-        io.emit("clearLobbyElements", myID);
-
+    socket.on("startGame", (roomCode, myID) => {        
         const myLobby = openLobbies.find(lobby => lobby.roomCode == roomCode);
+        io.to(myLobby.lobbyID).emit("clearLobbyElements", myID);
 
-        const myGame = new GameState(6, myID, myLobby.allPlayers);
-
+        const myGame = new GameState(myLobby.lobbyID, myID, myLobby.allPlayers, 6);
 
         const lobbyIndex = openLobbies.indexOf(myLobby);
         openLobbies.splice(lobbyIndex, 1);
@@ -277,13 +302,11 @@ io.on("connection", (socket) => {
         const myGame = ongoingGames.find(game => game.spiritID == spiritID);
         myGame.currentQuestion = questionText;
         myGame.gamePhase = "Question Response";
-        myGame.players.forEach(player => {
-            player.isReady = false;
-        });
-        io.emit("questionToAnswer", spiritID, questionText);
+        io.to(myGame.gameID).emit("questionToAnswer", spiritID, questionText);
     })
 
     socket.on("guessEntered", (playerID, playerGuess) => {
+        console.log("guess entered");
         const myGame = ongoingGames.find(game => game.players.find(player => player.playerID == playerID));
         myGame.addUserAnswer(playerID, playerGuess);
         const me = myGame.players.find(player => player.playerID == playerID);
@@ -292,14 +315,32 @@ io.on("connection", (socket) => {
     })
 
     socket.on("evaluatedQuestionAnswers", (spiritID, winner) => {
-        // !! reveal and save chosen ranking
+        const myGame = ongoingGames.find(game => game.spiritID == spiritID);
+        myGame.gamePhase = "Reveal Correct Answer";
+        const result = [myGame.currentQuestion, myGame.userAnswers, winner];
+        myGame.addResult(result);
+        io.to(myGame.gameID).emit("revealQuestionAnswer", winner);
+
+        setTimeout(() => {
+            roundProgression(myGame, socket);
+        }, 5000);
     })
 
-    socket.on("evaluatedQuestionAnswers", (spiritID, userAnswers, parts, partNum, ranking) => {
-        if (partNum < (parts - 1)){
-            io.emit("evaluateA/B", spiritID, userAnswers, parts, partNum + 1);
-        }
-        // !! reveal and save chosen answer 
+    socket.on("evaluatedA/BAnswers", (spiritID, userAnswers, parts, partNum, ranking) => {
+        const myGame = ongoingGames.find(game => game.spiritID == spiritID);
+        myGame.gamePhase = "Reveal Rankings";
+        const result = [myGame.userAnswers, ranking];
+        myGame.addResult(result);
+        io.to(myGame.gameID).emit("revealRanking", ranking);
+        
+        setTimeout(() => {
+            if (partNum < (parts - 1)){
+                io.to(myGame.gameID).emit("evaluateA/B", spiritID, userAnswers, parts, partNum + 1);
+            }
+            else{
+                roundProgression(myGame, socket);
+            }         
+        }, 5000);
     })
 
 })
@@ -317,23 +358,23 @@ function chooseQuestion(socket, myGame){
 
 
     myGame.gamePhase = "Question Selection";
-    io.emit("chooseQuestion", myGame.spiritID, q1, q2);
+    io.to(myGame.gameID).emit("chooseQuestion", myGame.spiritID, q1, q2);
 }
 
 async function generateRandomWords(socket, numWordsToGenerate, spiritID){
     const myGame = ongoingGames.find(game => game.spiritID == spiritID);
-    const res = await fetch("https://randomapi.dev/api/words?type=noun&count=50");
+    const res = await fetch("https://randomapi.dev/api/words?type=noun&count=100");
     const { data, meta } = await res.json();
 
     const modelResponse = await ai.models.generateContent({
         model: "gemini-3.5-flash-lite",
-        contents:  `Examine these nouns: ${JSON.stringify(data)}. For each, evaluate how difficult it would be to guess using yes/no questions. Rate physical, everyday objects as significantly easier than ideas, gerunds, and non-physical concepts. 
-                    Uncommon words are difficult to guess. Respond only with a string  of 50 digits, each corresponding value from 1(easiest) - 9(hardest). Pay special attention to values you assign to words in the 1-5 range.
-                    Use the following examples as a rough guidline 1: car, arm, house; 2: finger, bottle, tissue; 3: coaster, driveway, whisker; 4: antennae, cord, alarm; 5: diorite, flow, occupation; About half of the words should fit in this range.`,
+        contents:  `Examine these nouns: ${JSON.stringify(data)}. For each, evaluate how difficult it would be to guess using yes/no questions. Rate PHYSICAL objects that can be interacted with as significantly easier than ideas, gerunds, and non-physical concepts. 
+                    Uncommon words are difficult to guess. Respond only with a string  of 50 digits, each corresponding value from 1(easiest) - 9(hardest). Pay special attention to values you assign to words in the 1-5 range. At least 10% of the words should fit in this range.
+                    Use the following examples as a rough guidline 1: car, arm, house; 2: finger, bottle, tissue; 3: coaster, driveway, whisker; 4: antennae, cord, alarm; 5: diorite, flow, occupation; `,
     });
 
     let numValidCandidates = 0;
-    for (let i = 0; i < 50; i++){
+    for (let i = 0; i < 100; i++){
         const difficulty = modelResponse.text[i];
         const generatedWord = data[i].word;
         if(difficulty <= 5){
@@ -358,12 +399,24 @@ function checkReadiness(myGame){
         switch(myGame.gamePhase){
             case "Question Response":
                 myGame.gamePhase = "Question Evaluation";
-                io.emit("evaluateQuestion", myGame.spiritID, myGame.userAnswers);
+                io.to(myGame.gameID).emit("evaluateQuestion", myGame.spiritID, myGame.userAnswers);
                 break;
             case "A/B Response":
                 myGame.gamePhase = "A/B Evaluation";
-                io.emit("evaluateA/B", myGame.spiritID, myGame.userAnswers, 2, 0);
+                io.to(myGame.gameID).emit("evaluateA/B", myGame.spiritID, myGame.userAnswers, 2, 0);
                 break;
         }
+    }
+}
+
+function roundProgression(myGame, socket){
+    myGame.newRound();
+    io.to(myGame.gameID).emit("cleanUp");
+    if (myGame.gameRound > 2 && (myGame.gameRound < 7 || myGame.gameRound > 9)){
+        myGame.gamePhase == "A/B Response";
+        io.to(myGame.gameID).emit("questionToAnswer", myGame.spiritID, "Write the closer word in a head-to-head");
+    }
+    else{
+        chooseQuestion(socket, myGame)
     }
 }
