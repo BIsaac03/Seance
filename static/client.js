@@ -80,8 +80,18 @@ socket.on("clearLobbyElements", (spiritID) => {
     }
 })
 
-socket.on("reconnection", (spiritID, gamePhase, gameRound, currentQuestion, revealedLetters, isReady) => {
+socket.on("reconnection", (spiritID, gamePhase, gameRound, pastResults, currentQuestion, revealedLetters, isReady) => {
     addFlamingCandle(document.getElementById("candle"));
+    pastResults.forEach(result => {
+
+        if (result[3]){
+            addToQuestionHistory(...result);
+            console.log(...result)
+        }
+        else{
+            addToABHistory(...result);
+        }
+    })
     
     if (gamePhase == "Question Response" || gamePhase == "Questions Evaluation"){
         displayQuestion(currentQuestion);
@@ -183,6 +193,10 @@ socket.on("revealQuestionAnswer", (winner) => {
     const correctAnswer = document.querySelector(`#answerDisplay :nth-child(${winner + 1}`);
     correctAnswer.classList.add("correct");
 })
+socket.on("saveQuestionResults", (question, answers, correct) => {
+    addToQuestionHistory(question, answers, correct);
+})
+
 socket.on("revealRanking", (ranking) => {
     if (ranking < 3){
         setTimeout(() => {
@@ -341,6 +355,49 @@ function displayABChoices(a, b){
 
     ABDisplay.append(answerA, answerB);
     bodyElement.appendChild(ABDisplay);
+}
+
+function addToQuestionHistory(questionText, answerList, correctIndex){
+    console.log(questionText);
+    console.log(answerList);
+    const pastQuestion = document.createElement("div");
+    pastQuestion.classList.add("question");
+
+    const question = document.createElement("p");
+    question.innerHTML = questionText;
+    const answers = document.createElement("div");
+    answers.classList.add("answers");
+
+    for (let i = 0; i < answerList.length; i++){
+        const answer = document.createElement("div");
+        answer.classList.add("answer");
+        const answerText = document.createElement("p");
+        answerText.textContent = answerList[i];
+        answer.appendChild(answerText);
+
+        if (i == correctIndex){
+            answer.classList.add("correct");
+        }
+        answers.appendChild(answer);
+    }
+    pastQuestion.append(question, answers);
+    document.getElementById("pastInfo").appendChild(pastQuestion);
+}
+function addToABHistory(AText, BText, ranking){
+    const pastAB = document.createElement("div");
+    pastAB.classList.add("A/B-testing");
+
+    const scale = document.createElement("div");
+    scale.setAttribute("ranking", ranking);
+    const optionA = document.createElement("p");
+    optionA.classList.add("A");
+    optionA.textContent = AText;
+    const optionB = document.createElement("p");
+    optionB.classList.add("B");
+    optionB.textContent = BText;
+
+    pastAB.append(scale, optionA, optionB);
+    document.getElementById("pastInfo").appendChild(pastAB);
 }
 
 function revealLetter(index, value){

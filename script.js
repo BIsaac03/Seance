@@ -225,8 +225,8 @@ io.on("connection", (socket) => {
     const inGame = ongoingGames.find(game => game.players.find(player => player.playerID == socket.currentID))
     if (inGame){
         const me = inGame.players.find(player => player.playerID == socket.currentID);
-        socket.emit("reconnection", inGame.spiritID, inGame.gamePhase, inGame.gameRound, inGame.currentQuestion, inGame.revealedLetters, me.isReady);
-        
+        socket.emit("reconnection", inGame.spiritID, inGame.gamePhase, inGame.gameRound, inGame.pastResults, inGame.currentQuestion, inGame.revealedLetters, me.isReady);
+        console.log(inGame.pastResults[0])
         if (socket.currentID == inGame.spiritID){
             switch(inGame.gamePhase){
                 case "Waiting on Generation":
@@ -317,8 +317,11 @@ io.on("connection", (socket) => {
     socket.on("evaluatedQuestionAnswers", (spiritID, winner) => {
         const myGame = ongoingGames.find(game => game.spiritID == spiritID);
         myGame.gamePhase = "Reveal Correct Answer";
-        const result = [myGame.currentQuestion, myGame.userAnswers, winner];
+        const result = [myGame.currentQuestion, myGame.userAnswers.map(pair => pair[1]), winner, true];
+        console.log(result);
         myGame.addResult(result);
+        console.log(myGame.pastResults[0]);
+        io.to(myGame.gameID).emit("saveQuestionResults", myGame.currentQuestion, myGame.userAnswers, winner);
         io.to(myGame.gameID).emit("revealQuestionAnswer", winner);
 
         setTimeout(() => {
@@ -329,10 +332,14 @@ io.on("connection", (socket) => {
     socket.on("evaluatedA/BAnswers", (spiritID, userAnswers, parts, partNum, ranking) => {
         const myGame = ongoingGames.find(game => game.spiritID == spiritID);
         myGame.gamePhase = "Reveal Rankings";
-        const result = [myGame.userAnswers, ranking];
+
+        // !! award points based on ranking
+
+        const result = [userAnswers[partNum][1], userAnswers[partNum + 1][1], ranking, false];
         myGame.addResult(result);
+
+
         io.to(myGame.gameID).emit("revealRanking", ranking);
-        
         setTimeout(() => {
             if (partNum < (parts - 1)){
                 io.to(myGame.gameID).emit("evaluateA/B", spiritID, userAnswers, parts, partNum + 1);
@@ -369,7 +376,7 @@ async function generateRandomWords(socket, numWordsToGenerate, spiritID){
     const modelResponse = await ai.models.generateContent({
         model: "gemini-3.5-flash-lite",
         contents:  `Examine these nouns: ${JSON.stringify(data)}. For each, evaluate how difficult it would be to guess using yes/no questions. Rate PHYSICAL objects that can be interacted with as significantly easier than ideas, gerunds, and non-physical concepts. 
-                    Uncommon words are difficult to guess. Respond only with a string  of 50 digits, each corresponding value from 1(easiest) - 9(hardest). Pay special attention to values you assign to words in the 1-5 range. At least 10% of the words should fit in this range.
+                    Respond only with a string of 100 digits, each corresponding to a difficulty value from 1(easiest) - 9(hardest). Pay special attention to values you assign to words in the 1-5 range. At least 15% of the words must fit in this range.
                     Use the following examples as a rough guidline 1: car, arm, house; 2: finger, bottle, tissue; 3: coaster, driveway, whisker; 4: antennae, cord, alarm; 5: diorite, flow, occupation; `,
     });
 
